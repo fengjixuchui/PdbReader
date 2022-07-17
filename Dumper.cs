@@ -14,7 +14,7 @@ namespace PdbDumper
                 Usage();
                 return 1;
             }
-            Pdb pdv = new Pdb(_pdbFile);
+            Pdb pdv = new Pdb(_pdbFile, Pdb.TraceFlags.StreamDirectoryBlocks);
             Console.WriteLine("INFO : PDB file successfully loaded.");
             return 0;
         }

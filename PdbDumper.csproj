@@ -9,6 +9,7 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <Compile Remove="BlockMapReader.cs" />
     <Compile Remove="BugException.cs" />
     <Compile Remove="MSFSuperBlock.cs" />
     <Compile Remove="Pdb.cs" />
