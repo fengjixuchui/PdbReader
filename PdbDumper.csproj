@@ -8,4 +8,15 @@
     <Platforms>x64</Platforms>
   </PropertyGroup>
 
+  <ItemGroup>
+    <Compile Remove="BugException.cs" />
+    <Compile Remove="Pdb.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="PdbReader.csproj">
+      <CopyLocal>True</CopyLocal>
+    </ProjectReference>
+  </ItemGroup>
+
 </Project>

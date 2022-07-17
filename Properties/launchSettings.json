@@ -1,0 +1,8 @@
+{
+  "profiles": {
+    "PdbDumper": {
+      "commandName": "Project",
+      "commandLineArgs": "%USERPROFILE%\\AppData\\Local\\Temp\\SymbolCache\\ntdll.pdb\\FEA202D5473341CB4B29F58357A35D63\\ntdll.pdb"
+    }
+  }
+}
