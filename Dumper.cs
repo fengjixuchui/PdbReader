@@ -15,6 +15,7 @@ namespace PdbDumper
                 return 1;
             }
             Pdb pdv = new Pdb(_pdbFile);
+            Console.WriteLine("INFO : PDB file successfully loaded.");
             return 0;
         }
 

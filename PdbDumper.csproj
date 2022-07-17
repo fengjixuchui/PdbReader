@@ -10,7 +10,9 @@
 
   <ItemGroup>
     <Compile Remove="BugException.cs" />
+    <Compile Remove="MSFSuperBlock.cs" />
     <Compile Remove="Pdb.cs" />
+    <Compile Remove="PDBFormatException.cs" />
   </ItemGroup>
 
   <ItemGroup>

@@ -8,6 +8,7 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <Compile Remove="Dumper.cs" />
     <Compile Remove="Program.cs" />
   </ItemGroup>
 
