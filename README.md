@@ -15,3 +15,6 @@ https://llvm.org/docs/PDB/index.html
 The repository contains two projects. The PdbReader is the library itself while
 PdbDumper is a console application that is both a utility and the library tester.
 Both programs are intended to be run on x64 platforms only.
+
+Additional materials
+https://pierrelib.pagesperso-orange.fr/exec_formats/MS_Symbol_Type_v1.0.pdf

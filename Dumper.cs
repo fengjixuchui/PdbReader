@@ -6,7 +6,7 @@ namespace PdbDumper
 {
     public static class Dumper
     {
-        private static FileInfo _pdbFile;
+        private static FileInfo? _pdbFile;
 
         public static int Main(string[] args)
         {
@@ -14,9 +14,23 @@ namespace PdbDumper
                 Usage();
                 return 1;
             }
-            Pdb pdv = new Pdb(_pdbFile, Pdb.TraceFlags.StreamDirectoryBlocks);
+            if (null == _pdbFile) {
+                throw new ApplicationException("BUG");
+            }
+            Pdb pdb = new Pdb(_pdbFile, Pdb.TraceFlags.StreamDirectoryBlocks, true);
             Console.WriteLine("INFO : PDB file successfully loaded.");
+            LoadDBIStream(pdb);
             return 0;
+        }
+
+        private static void LoadDBIStream(Pdb pdb)
+        {
+            pdb.DebugInfoStream.LoadModuleInformations();
+            // pdb.DebugInfoStream.LoadSectionContributions();
+            // pdb.DebugInfoStream.LoadSectionMappings();
+            pdb.DebugInfoStream.LoadFileInformations();
+            // pdb.DebugInfoStream.LoadTypeServerMappings();
+            // pdb.DebugInfoStream.LoadEditAndContinueMappings();
         }
 
         private static bool ParseArgs(string[] args)
