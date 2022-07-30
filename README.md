@@ -18,3 +18,4 @@ Both programs are intended to be run on x64 platforms only.
 
 Additional materials
 https://pierrelib.pagesperso-orange.fr/exec_formats/MS_Symbol_Type_v1.0.pdf
+https://docs.rs/pdb/latest/pdb/struct.ItemInformation.html

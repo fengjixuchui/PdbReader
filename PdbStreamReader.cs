@@ -192,6 +192,13 @@ namespace PdbReader
             return Encoding.UTF8.GetString(bytes.ToArray());
         }
 
+        internal ushort PeekUInt16()
+        {
+            uint startOffset = Offset;
+            try { return ReadUInt16(); }
+            finally { this.Offset = startOffset; }
+        }
+
         internal ushort ReadUInt16()
         {
             uint remainingBlockBytes = RemainingBlockBytes;
@@ -278,6 +285,10 @@ namespace PdbReader
             if (resetBlockOffset) {
                 _currentBlockOffset = 0;
             }
+        }
+
+        private void SetGlobalOffset(uint offset)
+        {
         }
     }
 }

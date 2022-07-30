@@ -17,9 +17,11 @@ namespace PdbDumper
             if (null == _pdbFile) {
                 throw new ApplicationException("BUG");
             }
-            Pdb pdb = new Pdb(_pdbFile, Pdb.TraceFlags.StreamDirectoryBlocks, true);
+            Pdb pdb = new Pdb(_pdbFile, Pdb.TraceFlags.None /*StreamDirectoryBlocks*/, true);
             Console.WriteLine("INFO : PDB file successfully loaded.");
             LoadDBIStream(pdb);
+            LoadTPIStream(pdb);
+            LoadIPIStream(pdb);
             return 0;
         }
 
@@ -31,6 +33,16 @@ namespace PdbDumper
             pdb.DebugInfoStream.LoadFileInformations();
             // pdb.DebugInfoStream.LoadTypeServerMappings();
             // pdb.DebugInfoStream.LoadEditAndContinueMappings();
+        }
+
+        private static void LoadIPIStream(Pdb pdb)
+        {
+        }
+
+        private static void LoadTPIStream(Pdb pdb)
+        {
+            TypeIndexedStream stream = new PdbReader.TypeIndexedStream(pdb);
+            stream.LoadRecords();
         }
 
         private static bool ParseArgs(string[] args)

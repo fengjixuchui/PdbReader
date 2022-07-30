@@ -52,6 +52,9 @@ namespace PdbReader
         internal bool ShouldTraceNamedStreamMap
             => (0 != (_traceFlags & TraceFlags.NamedStreamMap));
 
+        internal bool ShouldTraceModules
+            => (0 != (_traceFlags & TraceFlags.ModulesInformation));
+
         internal bool ShouldTraceStreamDirectory
             => (0 != (_traceFlags & TraceFlags.StreamDirectoryBlocks));
 
@@ -237,7 +240,7 @@ namespace PdbReader
                         Console.Write(blockNumber);
                     }
                 }
-                Console.WriteLine();
+                if (ShouldTraceStreamDirectory) { Console.WriteLine(); }
             }
         }
 
@@ -290,6 +293,7 @@ namespace PdbReader
             None = 0,
             StreamDirectoryBlocks = 0x00000001,
             NamedStreamMap = 0x00000002,
+            ModulesInformation = 0x00000004,
         }
     }
 }

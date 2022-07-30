@@ -12,4 +12,8 @@
     <Compile Remove="Program.cs" />
   </ItemGroup>
 
+  <ItemGroup>
+    <Folder Include="CodeViewRecords\" />
+  </ItemGroup>
+
 </Project>
