@@ -29,20 +29,36 @@ namespace PdbReader
                 case LEAF_ENUM_e.ArgumentList:
                     ArgumentList thisArgsList = ArgumentList.Create(_reader);
                     break;
+                case LEAF_ENUM_e.Array:
+                    CodeViewArray thisArray = CodeViewArray.Create(_reader);
+                    break;
+                case LEAF_ENUM_e.BitField:
+                    BitField thisBitField = BitField.Create(_reader);
+                    break;
+                case LEAF_ENUM_e.Enum:
+                    Enumeration enumeration = Enumeration.Create(_reader, this);
+                    break;
                 case LEAF_ENUM_e.FieldList:
                     FieldList thisFieldsList = FieldList.Create(_reader);
                     break;
                 case LEAF_ENUM_e.Modifier:
-                    Modifier modifier = (Modifier)_reader.Read<Modifier>();
+                    Modifier modifier = _reader.Read<Modifier>();
                     break;
                 case LEAF_ENUM_e.Pointer:
                     IPointer pointer = PointerBody.Create(_reader, this);
                     // Remaining bytes may be present that are name chars related.S
                     break;
                 case LEAF_ENUM_e.Procedure:
+                    Procedure procedure = _reader.Read<Procedure>();
                     break;
                 case LEAF_ENUM_e.Structure:
                     Class thisStructure = Class.Create(_reader);
+                    break;
+                case LEAF_ENUM_e.Union:
+                    Union thisUnion = Union.Create(_reader);
+                    break;
+                case LEAF_ENUM_e.VirtualTableShape:
+                    VirtualTableShape thisVTShape = VirtualTableShape.Create(_reader);
                     break;
                 //case RecordKind.VirtualShape:
                 //    // Number of vftable entries. Each method may have more than one entry due to

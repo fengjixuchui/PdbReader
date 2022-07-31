@@ -100,7 +100,7 @@ namespace PdbReader.Microsoft.CodeView
         DefaultArgumentST = 0x1202,
         FieldList = 0x1203,
         Derived = 0x1204,
-        BitField = 0x1025,
+        BitField = 0x1205,
         MethodList = 0x1206,
         DimensionCONU = 0x1027,
         DimensionCONLU = 0x1208,

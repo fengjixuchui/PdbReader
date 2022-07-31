@@ -142,7 +142,9 @@ namespace PdbReader
             // Tracing
             int offsetIndex = 0;
             for(uint moduleIndex = 0; moduleIndex < modulesCount; moduleIndex++) {
-                Console.WriteLine($"Module #{moduleIndex}");
+                if (_owner.ShouldTraceModules) {
+                    Console.WriteLine($"Module #{moduleIndex}");
+                }
                 int thisModuleFilesCount = moduleFilesCount[moduleIndex];
                 for (int moduleFileIndex = 0;
                     moduleFileIndex < thisModuleFilesCount;
@@ -189,9 +191,11 @@ namespace PdbReader
                 }
                 string objectFileName = Encoding.UTF8.GetString(stringBytes.ToArray());
                 offset = _reader.Offset;
-                Console.WriteLine($"Module #{moduleIndex}: {moduleName}");
-                if (!string.IsNullOrEmpty(objectFileName)) {
-                    Console.WriteLine($"\t{objectFileName}");
+                if (_owner.ShouldTraceModules) {
+                    Console.WriteLine($"Module #{moduleIndex}: {moduleName}");
+                    if (!string.IsNullOrEmpty(objectFileName)) {
+                        Console.WriteLine($"\t{objectFileName}");
+                    }
                 }
             }
             return;
