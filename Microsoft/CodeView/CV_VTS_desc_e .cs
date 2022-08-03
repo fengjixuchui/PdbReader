@@ -1,7 +1,8 @@
 ﻿
 namespace PdbReader.Microsoft.CodeView
 {
-    internal enum CV_VTS_desc_e
+    /// <remarks>The value looks like it can be encoded on 3 bits.</remarks>
+    internal enum CV_VTS_desc_e : byte
     {
         Near = 0x00,
         Far = 0x01,

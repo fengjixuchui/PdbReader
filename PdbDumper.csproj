@@ -21,6 +21,7 @@
     <Compile Remove="HashTableReader.cs" />
     <Compile Remove="IdIndexedStream.cs" />
     <Compile Remove="IndexedStream.cs" />
+    <Compile Remove="IStreamGlobalOffset.cs" />
     <Compile Remove="ModuleInfoRecord.cs" />
     <Compile Remove="MSFSuperBlock.cs" />
     <Compile Remove="Pdb.cs" />

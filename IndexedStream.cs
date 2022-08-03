@@ -17,14 +17,21 @@ namespace PdbReader
 
         internal uint RecordsCount => _header.TypeIndexEnd - _header.TypeIndexBegin;
 
+        internal abstract string StreamName { get; }
+
         internal virtual void LoadRecord()
         {
-            uint recordStartGlobalOffset = _reader.ComputeGlobalOffset();
+            // This is a special case. When no more bytes remain on the block, the first
+            // read below will modify the global offset BEFORE reading the first byte.
+            // Hence capturing global offset now would provide an erroneous result.
+            IStreamGlobalOffset recordStartGlobalOffset = _reader.GetGlobalOffset(true);
             // The record length is the total number of bytes for this record EXCLUDING
             // the 2 bytes of the recordLength field itself.
             ushort recordLength = _reader.ReadUInt16();
-            uint recordEndOffsetExcluded = _reader.Offset + recordLength;
+            IStreamGlobalOffset recordEndGlobalOffsetExcluded =
+                recordStartGlobalOffset.Add((uint)(recordLength + sizeof(ushort)));
             LEAF_ENUM_e recordKind = (LEAF_ENUM_e)_reader.PeekUInt16();
+            bool allowExtraBytes = false;
             switch (recordKind) {
                 case LEAF_ENUM_e.ArgumentList:
                     ArgumentList thisArgsList = ArgumentList.Create(_reader);
@@ -35,14 +42,25 @@ namespace PdbReader
                 case LEAF_ENUM_e.BitField:
                     BitField thisBitField = BitField.Create(_reader);
                     break;
+                case LEAF_ENUM_e.BuildInformation:
+                    BuildInformation thisBuildInformation = BuildInformation.Create(_reader);
+                    break;
                 case LEAF_ENUM_e.Enum:
                     Enumeration enumeration = Enumeration.Create(_reader, this);
                     break;
                 case LEAF_ENUM_e.FieldList:
                     FieldList thisFieldsList = FieldList.Create(_reader);
                     break;
+                case LEAF_ENUM_e.FunctionIdentifier:
+                    FunctionIdentifier thisFunctionIdentifier =
+                        FunctionIdentifier.Create(_reader);
+                    allowExtraBytes = true;
+                    break;
+                case LEAF_ENUM_e.Label:
+                    Label thisLabel = _reader.Read<Label>();
+                    break;
                 case LEAF_ENUM_e.Modifier:
-                    Modifier modifier = _reader.Read<Modifier>();
+                    Modifier thisModifier = _reader.Read<Modifier>();
                     break;
                 case LEAF_ENUM_e.Pointer:
                     IPointer pointer = PointerBody.Create(_reader, this);
@@ -51,8 +69,15 @@ namespace PdbReader
                 case LEAF_ENUM_e.Procedure:
                     Procedure procedure = _reader.Read<Procedure>();
                     break;
+                case LEAF_ENUM_e.StringIdentifier:
+                    StringIdentifier thisStringIdentifier = StringIdentifier.Create(_reader);
+                    allowExtraBytes = true;
+                    break;
                 case LEAF_ENUM_e.Structure:
                     Class thisStructure = Class.Create(_reader);
+                    break;
+                case LEAF_ENUM_e.UDTSourceLine:
+                    UDTSourceLine thisSourceLine = UDTSourceLine.Create(_reader);
                     break;
                 case LEAF_ENUM_e.Union:
                     Union thisUnion = Union.Create(_reader);
@@ -60,40 +85,49 @@ namespace PdbReader
                 case LEAF_ENUM_e.VirtualTableShape:
                     VirtualTableShape thisVTShape = VirtualTableShape.Create(_reader);
                     break;
-                //case RecordKind.VirtualShape:
-                //    // Number of vftable entries. Each method may have more than one entry due to
-                //    // things like covariant return types.
-                //    // ulittle16_t VFEntryCount;
-                //    ushort entriesCount = _reader.ReadUInt16();
-                //    // Descriptors[]: 4-bit virtual method descriptors of type CV_VTS_desc_e
-                //    byte dummy = 0;
-                //    for (int index = 0; index < entriesCount; index++) {
-                //        if (0 == (index % 2)) {
-                //            dummy = _reader.ReadByte();
-                //        }
-                //        else { dummy = (byte)(dummy >> 4); }
-                //        continue;
-                //    }
-                //    break;
                 default:
                     Console.WriteLine(
                         $"WARN : Unknwon leaf record kind '{recordKind}' / 0x{((int)recordKind):X4}");
                     break;
             }
-            if (_reader.Offset < recordEndOffsetExcluded) {
-                uint ignoredBytesCount = recordEndOffsetExcluded - _reader.Offset;
-                Console.WriteLine(
-                    $"WARN : {recordKind} record should end at {recordEndOffsetExcluded} : {ignoredBytesCount} bytes ignored.");
-                _reader.Offset = _reader.Offset + ignoredBytesCount;
+            IStreamGlobalOffset currentGlobalOffset = _reader.GetGlobalOffset();
+            if (currentGlobalOffset.Value < recordEndGlobalOffsetExcluded.Value) {
+                uint ignoredBytesCount = recordEndGlobalOffsetExcluded.Value -
+                    currentGlobalOffset.Value;
+                bool doNotWarnOnReset = false;
+                if (!allowExtraBytes || (sizeof(uint) <= ignoredBytesCount)) {
+                    // Emit warning when extra bytes count is greater or equal to word size
+                    // or if extra bytes are not explictly allowed.
+                    // This should be an incomplete decoding indicator.
+                    // NOTICE : This is en heuristic which is not supported by official source
+                    // code evidences.
+                    Console.WriteLine(
+                        $"WARN : {recordKind} record should end at {recordEndGlobalOffsetExcluded} : {ignoredBytesCount} bytes ignored.");
+                }
+                else {
+                    doNotWarnOnReset = true;
+                    Console.WriteLine($"DBG : {recordKind} record fully decoded.");
+                }
+                // Adjust reader position.
+                _reader.SetGlobalOffset(recordEndGlobalOffsetExcluded, doNotWarnOnReset);
             }
-            else if (_reader.Offset > recordEndOffsetExcluded) {
+            else if (currentGlobalOffset.Value > recordEndGlobalOffsetExcluded.Value) {
+                uint excessBytesCount = currentGlobalOffset
+                    .Subtract(recordEndGlobalOffsetExcluded)
+                    .Add(1)
+                    .Value;
                 throw new BugException(
-                    $"WARN : {recordKind} record starting at global offset 0x{recordStartGlobalOffset:X8} consumed {(1 + _reader.Offset - recordEndOffsetExcluded)} bytes in excess.\n.Should have ended at {recordEndOffsetExcluded} stream offset.");
+                    $"WARN : {recordKind} record starting at global offset 0x{recordStartGlobalOffset.Value:X8} consumed {excessBytesCount} bytes in excess.\n.Should have ended at {recordEndGlobalOffsetExcluded} stream offset.");
             }
+            else if (currentGlobalOffset == recordEndGlobalOffsetExcluded) {
+                Console.WriteLine($"DBG : {recordKind} record fully decoded.");
+            }
+            else { throw new BugException(); }
         }
 
         public virtual void LoadRecords()
         {
+            Console.WriteLine($"Loading {StreamName} stream records.");
             uint recordsCount = RecordsCount;
             uint totalRecordBytes = _header.TypeRecordBytes;
             uint offset = 0;
@@ -109,6 +143,7 @@ namespace PdbReader
                     }
                 }
             }
+            Console.WriteLine($"{StreamName} records loading completed.");
             return;
         }
 

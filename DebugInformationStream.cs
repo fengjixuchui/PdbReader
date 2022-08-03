@@ -95,7 +95,7 @@ namespace PdbReader
             int newOffset = Marshal.SizeOf<DBIStreamHeader>() + _header.ModInfoSize +
                 _header.SectionContributionSize + _header.SectionMapSize;
             _reader.Offset = Pdb.SafeCastToUint32(newOffset);
-            uint globalOffset = _reader.ComputeGlobalOffset();
+            IStreamGlobalOffset globalOffset = _reader.GetGlobalOffset();
 
             // Read stream content.
             ushort modulesCount = _reader.ReadUInt16();

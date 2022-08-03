@@ -37,6 +37,8 @@ namespace PdbDumper
 
         private static void LoadIPIStream(Pdb pdb)
         {
+            IdIndexedStream stream = new PdbReader.IdIndexedStream(pdb);
+            stream.LoadRecords();
         }
 
         private static void LoadTPIStream(Pdb pdb)

@@ -6,10 +6,11 @@ namespace PdbReader
     {
         private const uint ThisStreamIndex = 4;
 
-        internal IdIndexedStream(Pdb owner)
+        public IdIndexedStream(Pdb owner)
             : base(owner, ThisStreamIndex)
         {
         }
 
+        internal override string StreamName => "IPI";
     }
 }

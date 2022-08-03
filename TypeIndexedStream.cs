@@ -10,5 +10,7 @@ namespace PdbReader
             : base(owner, ThisStreamIndex)
         {
         }
+
+        internal override string StreamName => "TPI";
     }
 }
