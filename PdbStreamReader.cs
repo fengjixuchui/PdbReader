@@ -370,6 +370,13 @@ namespace PdbReader
                 }
             }
 
+            private GlobalOffset(PdbStreamReader owner, int index, uint offset)
+            {
+                _owner = owner;
+                _blockIndex = index;
+                _blockOffset = offset;
+            }
+
             internal GlobalOffset(PdbStreamReader owner, uint value)
             {
                 _owner = owner;
@@ -386,9 +393,8 @@ namespace PdbReader
                 while (true) {
                     uint candidateOffset = remainingDisplacement + currentBlockOffset;
                     if (candidateOffset < _owner._blockSize) {
-                        _blockIndex = currentBlockIndex;
-                        _blockOffset = candidateOffset;
-                        return this;
+                        return new GlobalOffset(this._owner, currentBlockIndex,
+                            candidateOffset);
                     }
                     // Continue with next block.
                     uint availableBlockBytes = _owner._blockSize - currentBlockOffset;

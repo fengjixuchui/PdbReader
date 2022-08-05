@@ -28,11 +28,11 @@ namespace PdbDumper
         private static void LoadDBIStream(Pdb pdb)
         {
             pdb.DebugInfoStream.LoadModuleInformations();
-            // pdb.DebugInfoStream.LoadSectionContributions();
-            // pdb.DebugInfoStream.LoadSectionMappings();
+            pdb.DebugInfoStream.LoadSectionContributions();
+            pdb.DebugInfoStream.LoadSectionMappings();
             pdb.DebugInfoStream.LoadFileInformations();
-            // pdb.DebugInfoStream.LoadTypeServerMappings();
-            // pdb.DebugInfoStream.LoadEditAndContinueMappings();
+            pdb.DebugInfoStream.LoadTypeServerMappings();
+            pdb.DebugInfoStream.LoadEditAndContinueMappings();
         }
 
         private static void LoadIPIStream(Pdb pdb)

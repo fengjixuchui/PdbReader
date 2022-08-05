@@ -82,6 +82,7 @@ namespace PdbReader
                     break;
                 case LEAF_ENUM_e.Structure:
                     Class thisStructure = Class.Create(_reader);
+                    allowExtraBytes = true;
                     break;
                 case LEAF_ENUM_e.UDTSourceLine:
                     UDTSourceLine thisSourceLine = UDTSourceLine.Create(_reader);
@@ -114,7 +115,7 @@ namespace PdbReader
                 }
                 else {
                     doNotWarnOnReset = true;
-                    Console.WriteLine($"DBG : {recordKind} #{recordIdentifier} record fully decoded.");
+                    Console.WriteLine($"DBG : {recordKind} record #{recordIdentifier} fully decoded.");
                 }
                 // Adjust reader position.
                 _reader.SetGlobalOffset(recordEndGlobalOffsetExcluded, doNotWarnOnReset);
