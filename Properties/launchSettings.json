@@ -1,0 +1,13 @@
+{
+  "profiles": {
+    "PdbReader Debug|X64": {
+      "commandName": "Executable",
+      "executablePath": "C:\\Users\\jp.forestier\\source\\repos\\PERSO\\PDB\\PdbReader\\bin\\x64\\Debug\\net6.0\\PdbDumper.exe",
+      "commandLineArgs": "%USERPROFILE%\\AppData\\Local\\Temp\\SymbolCache\\ntdll.pdb\\FEA202D5473341CB4B29F58357A35D63\\ntdll.pdb"
+    },
+    "PdbDumper Debug|X64": {
+      "commandName": "Project",
+      "commandLineArgs": "%USERPROFILE%\\AppData\\Local\\Temp\\SymbolCache\\ntdll.pdb\\FEA202D5473341CB4B29F58357A35D63\\ntdll.pdb"
+    }
+  }
+}

@@ -8,4 +8,34 @@
     <Platforms>x64</Platforms>
   </PropertyGroup>
 
+  <ItemGroup>
+    <Compile Remove="Microsoft\**" />
+    <EmbeddedResource Remove="Microsoft\**" />
+    <None Remove="Microsoft\**" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Compile Remove="BlockMapReader.cs" />
+    <Compile Remove="BugException.cs" />
+    <Compile Remove="DebugInformationStream.cs" />
+    <Compile Remove="HashTableReader.cs" />
+    <Compile Remove="IdIndexedStream.cs" />
+    <Compile Remove="IndexedStream.cs" />
+    <Compile Remove="IStreamGlobalOffset.cs" />
+    <Compile Remove="ModuleInfoRecord.cs" />
+    <Compile Remove="MSFSuperBlock.cs" />
+    <Compile Remove="Pdb.cs" />
+    <Compile Remove="PDBFormatException.cs" />
+    <Compile Remove="PdbStreamHeader.cs" />
+    <Compile Remove="PdbStreamReader.cs" />
+    <Compile Remove="PdbStreamVersion.cs" />
+    <Compile Remove="TypeIndexedStream.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="PdbReader.csproj">
+      <CopyLocal>True</CopyLocal>
+    </ProjectReference>
+  </ItemGroup>
+
 </Project>
