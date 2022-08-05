@@ -7,9 +7,11 @@ namespace PdbReader
         protected readonly Header _header;
         protected readonly Pdb _owner;
         internal readonly PdbStreamReader _reader;
+        private readonly uint _streamIndex;
 
         protected IndexedStream(Pdb owner, uint streamIndex)
         {
+            _streamIndex = streamIndex;
             _owner = owner ?? throw new ArgumentNullException(nameof(owner));
             _reader = new PdbStreamReader(owner, streamIndex);
             _header = _reader.Read<Header>();
@@ -19,17 +21,22 @@ namespace PdbReader
 
         internal abstract string StreamName { get; }
 
-        internal virtual void LoadRecord()
+        internal virtual void LoadRecord(uint recordIdentifier)
         {
             // This is a special case. When no more bytes remain on the block, the first
             // read below will modify the global offset BEFORE reading the first byte.
             // Hence capturing global offset now would provide an erroneous result.
             IStreamGlobalOffset recordStartGlobalOffset = _reader.GetGlobalOffset(true);
+            // WARNING : This offset must be capture AFTER the previous call which may have
+            // modified the offset value.
+            uint recordStartOffset = _reader.Offset;
             // The record length is the total number of bytes for this record EXCLUDING
             // the 2 bytes of the recordLength field itself.
             ushort recordLength = _reader.ReadUInt16();
+            uint recordTotalLength = (uint)(recordLength + sizeof(ushort));
             IStreamGlobalOffset recordEndGlobalOffsetExcluded =
-                recordStartGlobalOffset.Add((uint)(recordLength + sizeof(ushort)));
+                recordStartGlobalOffset.Add(recordTotalLength);
+            uint recordEndOffsetExcluded = recordStartOffset + recordTotalLength;
             LEAF_ENUM_e recordKind = (LEAF_ENUM_e)_reader.PeekUInt16();
             bool allowExtraBytes = false;
             switch (recordKind) {
@@ -91,36 +98,37 @@ namespace PdbReader
                     break;
             }
             IStreamGlobalOffset currentGlobalOffset = _reader.GetGlobalOffset();
-            if (currentGlobalOffset.Value < recordEndGlobalOffsetExcluded.Value) {
-                uint ignoredBytesCount = recordEndGlobalOffsetExcluded.Value -
-                    currentGlobalOffset.Value;
+            uint currentOffset = _reader.Offset;
+            if (currentOffset < recordEndOffsetExcluded) {
+                uint ignoredBytesCount = recordEndOffsetExcluded - currentOffset;
                 bool doNotWarnOnReset = false;
                 if (!allowExtraBytes || (sizeof(uint) <= ignoredBytesCount)) {
                     // Emit warning when extra bytes count is greater or equal to word size
                     // or if extra bytes are not explictly allowed.
                     // This should be an incomplete decoding indicator.
-                    // NOTICE : This is en heuristic which is not supported by official source
+                    // NOTICE : This is an heuristic which is not supported by official source
                     // code evidences.
                     Console.WriteLine(
-                        $"WARN : {recordKind} record should end at {recordEndGlobalOffsetExcluded} : {ignoredBytesCount} bytes ignored.");
+                        $"WARN : {recordKind} record #{recordIdentifier} starting at 0x{recordStartGlobalOffset.Value:X8}/{recordStartOffset}.\r\n" +
+                        $"Should have ended at 0x{recordEndGlobalOffsetExcluded.Value}/{recordEndOffsetExcluded} : {ignoredBytesCount} bytes ignored.");
                 }
                 else {
                     doNotWarnOnReset = true;
-                    Console.WriteLine($"DBG : {recordKind} record fully decoded.");
+                    Console.WriteLine($"DBG : {recordKind} #{recordIdentifier} record fully decoded.");
                 }
                 // Adjust reader position.
                 _reader.SetGlobalOffset(recordEndGlobalOffsetExcluded, doNotWarnOnReset);
             }
-            else if (currentGlobalOffset.Value > recordEndGlobalOffsetExcluded.Value) {
-                uint excessBytesCount = currentGlobalOffset
-                    .Subtract(recordEndGlobalOffsetExcluded)
-                    .Add(1)
-                    .Value;
-                throw new BugException(
-                    $"WARN : {recordKind} record starting at global offset 0x{recordStartGlobalOffset.Value:X8} consumed {excessBytesCount} bytes in excess.\n.Should have ended at {recordEndGlobalOffsetExcluded} stream offset.");
+            else if (currentOffset > recordEndOffsetExcluded) {
+                uint excessBytesCount = currentOffset - recordEndOffsetExcluded;
+                Console.WriteLine(
+                    $"ERROR : {recordKind} record #{recordIdentifier} starting 0x{recordStartGlobalOffset.Value:X8}/{recordStartOffset}.\r\n" +
+                    $"Should have ended at 0x{recordEndGlobalOffsetExcluded:X8}/{recordEndOffsetExcluded} : consumed {excessBytesCount} bytes in excess");
+                // Adjust reader position.
+                _reader.SetGlobalOffset(recordEndGlobalOffsetExcluded);
             }
-            else if (currentGlobalOffset == recordEndGlobalOffsetExcluded) {
-                Console.WriteLine($"DBG : {recordKind} record fully decoded.");
+            else if (currentOffset == recordEndOffsetExcluded) {
+                Console.WriteLine($"DBG : {recordKind} record #{recordIdentifier} fully decoded.");
             }
             else { throw new BugException(); }
         }
@@ -131,11 +139,15 @@ namespace PdbReader
             uint recordsCount = RecordsCount;
             uint totalRecordBytes = _header.TypeRecordBytes;
             uint offset = 0;
-            int recordIndex = 0;
+            uint recordIndex = 0;
             while (offset < totalRecordBytes) {
                 uint startOffset = _reader.Offset;
-                LoadRecord();
-                offset += _reader.Offset - startOffset;
+                LoadRecord(recordIndex);
+                uint deltaOffset = _reader.Offset - startOffset;
+                if (0 == deltaOffset) {
+                    throw new BugException();
+                }
+                offset += deltaOffset;
                 if (++recordIndex >= recordsCount) {
                     // We should have consumed the expected total number of bytes.
                     if (offset < totalRecordBytes) {

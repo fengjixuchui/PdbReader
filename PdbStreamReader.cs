@@ -54,7 +54,16 @@ namespace PdbReader
         }
 
         /// <summary>Get number of bytes not yet read within current block.</summary>
-        internal uint RemainingBlockBytes => _blockSize - _currentBlockOffset;
+        internal uint RemainingBlockBytes
+        {
+            get
+            {
+                if (_blockSize < _currentBlockOffset) {
+                    throw new BugException();
+                }
+                return _blockSize - _currentBlockOffset;
+            }
+        }
 
         internal IStreamGlobalOffset GetGlobalOffset(bool ensureAtLeastOneAvailableByte = false)
         {
@@ -103,6 +112,11 @@ namespace PdbReader
                 // Fast read.
                 T result = _pdb.Read<T>(_GetGlobalOffset());
                 _currentBlockOffset += requiredBytes;
+                // We may have consumed the whole block. In such a case we should set position
+                // at beginning of the next one.
+                if (0 == RemainingBlockBytes) {
+                    MoveToNextBlock();
+                }
                 return result;
             }
             IntPtr buffer = IntPtr.Zero;
@@ -308,22 +322,13 @@ namespace PdbReader
             if (!doNotWarn) {
                 Console.WriteLine($"WARN : Setting reader global offset is not expected in normal course.");
             }
-            for (int blockIndex = 0; blockIndex < _blocks.Length; blockIndex++) {
-                uint blockNumber = _blocks[blockIndex];
-                uint blockStartGlobalOffset = blockNumber * _blockSize;
-                if (blockStartGlobalOffset > value.Value) {
-                    continue;
-                }
-                uint blockEndGlobalOffsetExcluded = blockStartGlobalOffset + _blockSize;
-                if (blockEndGlobalOffsetExcluded <= value.Value) {
-                    continue;
-                }
-                SetCurrentBlockIndex((uint)blockIndex);
-                // TODO : Should not use arithmetic on value.
-                _currentBlockOffset = value.Value - blockStartGlobalOffset;
-                return;
+            uint newBlockOffset;
+            int newBlockIndex = FindBlockIndex(value.Value, out newBlockOffset);
+            if (0 > newBlockIndex) {
+                throw new BugException();
             }
-            throw new BugException($"Attempt to set stream global offset at 0x{value:X8} which is outside of current stream content.");
+            SetCurrentBlockIndex((uint)newBlockIndex);
+            _currentBlockOffset = newBlockOffset;
         }
 
         private int FindBlockIndex(uint globalOffset, out uint blockOffset)
@@ -351,33 +356,48 @@ namespace PdbReader
             private int _blockIndex;
             private uint _blockOffset;
 
-            public uint Value { get; private set; }
+            public uint Value
+            {
+                get
+                {
+                    ulong candidateResult =
+                        ((ulong)_owner._blockSize * _owner._blocks[_blockIndex]) +
+                        _blockOffset;
+                    if (uint.MaxValue < candidateResult) {
+                        throw new BugException();
+                    }
+                    return (uint)candidateResult;
+                }
+            }
 
             internal GlobalOffset(PdbStreamReader owner, uint value)
             {
                 _owner = owner;
-                Value = value;
                 _blockIndex = owner.FindBlockIndex(value, out _blockOffset);
             }
 
             public IStreamGlobalOffset Add(uint relativeOffset)
             {
                 uint initialGlobalOffsetValue = Value;
-                uint resultingBlockCurrentRelativeOffset = _owner._blockSize - _blockOffset;
-                int resultingBlockIndex = _blockIndex;
-                uint remainingRelativeOffset = relativeOffset;
-                while(true) {
-                    if (resultingBlockCurrentRelativeOffset >= remainingRelativeOffset) {
-                        _blockIndex = resultingBlockIndex;
-                        _blockOffset = resultingBlockCurrentRelativeOffset + relativeOffset;
+                uint currentBlockOffset;
+                int currentBlockIndex = _owner.FindBlockIndex(initialGlobalOffsetValue,
+                    out currentBlockOffset);
+                uint remainingDisplacement = relativeOffset;
+                while (true) {
+                    uint candidateOffset = remainingDisplacement + currentBlockOffset;
+                    if (candidateOffset < _owner._blockSize) {
+                        _blockIndex = currentBlockIndex;
+                        _blockOffset = candidateOffset;
                         return this;
                     }
-                    remainingRelativeOffset -= resultingBlockCurrentRelativeOffset;
-                    if (++resultingBlockIndex >= _owner._blocks.Length) {
+                    // Continue with next block.
+                    uint availableBlockBytes = _owner._blockSize - currentBlockOffset;
+                    remainingDisplacement -= availableBlockBytes;
+                    if (++currentBlockIndex >= _owner._blocks.Length) {
                         throw new BugException(
                             $"Unable to add {relativeOffset} to global offset at {initialGlobalOffsetValue}.");
                     }
-                    resultingBlockCurrentRelativeOffset = _owner._blockSize;
+                    currentBlockOffset = 0;
                 }
             }
 
@@ -401,22 +421,25 @@ namespace PdbReader
 
             public IStreamGlobalOffset Subtract(uint relativeOffset)
             {
-                uint initialValue = Value;
-                uint resultingBlockCurrentOffset = _blockOffset;
-                int resultingBlockIndex = _blockIndex;
-                uint remainingOffset = relativeOffset;
-                while(true) {
-                    if (resultingBlockCurrentOffset >= remainingOffset) {
-                        _blockIndex = resultingBlockIndex;
-                        _blockOffset = resultingBlockCurrentOffset - relativeOffset;
+                uint initialGlobalOffsetValue = Value;
+                uint currentBlockOffset;
+                int currentBlockIndex = _owner.FindBlockIndex(initialGlobalOffsetValue,
+                    out currentBlockOffset);
+                uint remainingDisplacement = relativeOffset;
+                while (true) {
+                    if (currentBlockOffset > remainingDisplacement) {
+                        _blockIndex = currentBlockIndex;
+                        _blockOffset = currentBlockOffset - remainingDisplacement;
                         return this;
                     }
-                    remainingOffset -= resultingBlockCurrentOffset;
-                    if (++resultingBlockIndex >= _owner._blocks.Length) {
+                    // Continue with previous block.
+                    uint availableBlockBytes = currentBlockOffset + 1;
+                    remainingDisplacement -= availableBlockBytes;
+                    if (0 == currentBlockIndex--) {
                         throw new BugException(
-                            $"Unable to add {relativeOffset} to global offset at {initialValue}.");
+                            $"Unable to subtract {relativeOffset} to global offset at {initialGlobalOffsetValue}.");
                     }
-                    resultingBlockCurrentOffset = _owner._blockSize;
+                    currentBlockOffset = _owner._blockSize - 1;
                 }
             }
         }
