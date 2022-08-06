@@ -17,6 +17,7 @@ namespace PdbReader.Microsoft.CodeView
         {
             BuildInformation result = new BuildInformation(reader.Read<_InformationBase>());
             reader.ReadArray<uint>(result.Arguments, reader.ReadUInt32);
+            reader.HandlePadding();
             return result;
         }
 

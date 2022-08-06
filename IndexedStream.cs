@@ -53,7 +53,7 @@ namespace PdbReader
                     // code evidences.
                     Console.WriteLine(
                         $"WARN : {recordKind} record #{recordIdentifier} starting at 0x{recordStartGlobalOffset.Value:X8}/{recordStartOffset}.\r\n" +
-                        $"Should have ended at 0x{recordEndGlobalOffsetExcluded.Value}/{recordEndOffsetExcluded} : {ignoredBytesCount} bytes ignored.");
+                        $"Should have ended at 0x{recordEndGlobalOffsetExcluded.Value:X8}/{recordEndOffsetExcluded} : {ignoredBytesCount} bytes ignored.");
                 }
                 else {
                     doNotWarnOnReset = true;
