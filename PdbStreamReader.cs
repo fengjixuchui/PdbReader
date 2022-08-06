@@ -140,6 +140,22 @@ namespace PdbReader
             }
         }
 
+        internal void HandlePadding()
+        {
+            const uint WordBytesCount = 4;
+            uint paddingBytesCount = ComputePaddingSize(WordBytesCount);
+            byte firstCandidatePaddingByte = PeekByte();
+            if ((0xF0 + paddingBytesCount) == firstCandidatePaddingByte) {
+                while(0 < paddingBytesCount) {
+                    byte paddingByte = ReadByte();
+                    if (paddingByte != (0xF0 + paddingBytesCount)) {
+                        throw new BugException();
+                    }
+                    paddingBytesCount--;
+                }
+            }
+        }
+
         private void MoveToNextBlock()
         {
             if (!MoveToNextBlockAllowEndOfStream()) {
@@ -295,18 +311,7 @@ namespace PdbReader
             string result = Encoding.UTF8.GetString(bytes.ToArray());
             // It looks like some but not all NTB strings are further padded with additional
             // bytes to next 32 bits boundary. Padding bytes are 0xF3 0xF2 0xF1 (in that order).
-            const uint WordBytesCount = 4;
-            uint paddingBytesCount = ComputePaddingSize(WordBytesCount);
-            byte firstCandidatePaddingByte = PeekByte();
-            if ((0xF0 + paddingBytesCount) == firstCandidatePaddingByte) {
-                while(0 < paddingBytesCount) {
-                    byte paddingByte = ReadByte();
-                    if (paddingByte != (0xF0 + paddingBytesCount)) {
-                        throw new BugException();
-                    }
-                    paddingBytesCount--;
-                }
-            }
+            HandlePadding();
             HandleEndOfBlock();
             return result;
         }

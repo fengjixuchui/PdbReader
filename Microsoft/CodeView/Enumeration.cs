@@ -7,28 +7,20 @@ namespace PdbReader.Microsoft.CodeView
     {
         internal _Enumeration _data;
         internal string _name;
+        internal string _decoratedName;
 
-        private Enumeration(_Enumeration data, string name)
+        private Enumeration(_Enumeration data, string name, string decoratedName)
         {
             _data = data;
             _name = name ?? throw new ArgumentNullException(nameof(name));
+            _decoratedName = decoratedName
+                ?? throw new ArgumentNullException(nameof(decoratedName));
         }
 
         internal static Enumeration Create(PdbStreamReader reader, IndexedStream stream)
         {
-            _Enumeration data = reader.Read<_Enumeration>();
-            List<byte> nameBytes = new List<byte>();
-            while (true) {
-                byte inputByte = reader.ReadByte();
-                if (0 == inputByte) {
-                    break;
-                }
-                nameBytes.Add(inputByte);
-            }
-            string enumerationName = Encoding.ASCII.GetString(nameBytes.ToArray());
-            // TODO : Looks like there is another name after this one at least from time to
-            // time.
-            return new Enumeration(data, enumerationName);
+            return new Enumeration(reader.Read<_Enumeration>(), reader.ReadNTBString(),
+                reader.ReadNTBString());
         }
 
         [StructLayout(LayoutKind.Sequential, Pack = 1)]
@@ -39,8 +31,6 @@ namespace PdbReader.Microsoft.CodeView
             internal CV_prop_t property; // property attribute field
             internal uint /*CV_typ_t*/ utype; // underlying type of the enum
             internal uint /*CV_typ_t*/ field; // type index of LF_FIELD descriptor list
-            // TODO 
-            // unsigned char Name[1]; // length prefixed name of enum
         }
     }
 }

@@ -14,6 +14,8 @@ namespace PdbReader.Microsoft.CodeView
         internal static BitField Create(PdbStreamReader reader)
         {
             _BitField data = reader.Read<_BitField>();
+            // It looks like any BitField record is subject to padding.
+            reader.HandlePadding();
             return new BitField(data);
         }
 

@@ -94,9 +94,6 @@ namespace PdbReader
                 case LEAF_ENUM_e.Enumerate:
                     return Enumerate.Create(_reader);
                 case LEAF_ENUM_e.FieldList:
-                    if (0 == recordLength) {
-                        throw new BugException();
-                    }
                     return FieldList.Create(this, recordLength);
                 case LEAF_ENUM_e.FunctionIdentifier:
                     return FunctionIdentifier.Create(_reader);
