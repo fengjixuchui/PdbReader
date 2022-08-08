@@ -5,18 +5,19 @@ namespace PdbReader.Microsoft.CodeView
     internal class BuildInformation
     {
         internal _InformationBase Base;
-        internal ushort[] /*CV_ItemId*/ Arguments;
+        internal uint[] /*CV_ItemId*/ Arguments;
 
         private BuildInformation(_InformationBase @base)
         {
             Base = @base;
-            Arguments = new ushort[Base.count];
+            Arguments = new uint[Base.count];
         }
 
         internal static BuildInformation Create(PdbStreamReader reader)
         {
             BuildInformation result = new BuildInformation(reader.Read<_InformationBase>());
-            reader.ReadArray<ushort>(result.Arguments, reader.ReadUInt16);
+            reader.ReadArray<uint>(result.Arguments, reader.ReadUInt32);
+            reader.HandlePadding();
             return result;
         }
 

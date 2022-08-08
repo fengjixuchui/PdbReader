@@ -13,15 +13,7 @@ namespace PdbReader.Microsoft.CodeView
             FunctionIdentifier result = new FunctionIdentifier() {
                 Identifier = reader.Read<_FunctionIdentifier>()
             };
-            StringBuilder builder = new StringBuilder();
-            while (true) {
-                byte  inputByte = reader.ReadByte();
-                if (0 == inputByte) {
-                    break;
-                }
-                builder.Append((char)inputByte);
-            }
-            result.Name = builder.ToString();
+            result.Name = reader.ReadNTBString();
             return result;
         }
 

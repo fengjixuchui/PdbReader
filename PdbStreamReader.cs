@@ -18,6 +18,7 @@ namespace PdbReader
         private uint _currentBlockNumber;
         /// <summary>Index within current block of first unread byte.</summary>
         private uint _currentBlockOffset;
+        private bool _endOfStreamReached = false;
         private readonly Pdb _pdb;
         private readonly uint _streamSize;
 
@@ -27,7 +28,7 @@ namespace PdbReader
             _pdb = owner;
             _blocks = owner.GetStreamMap(streamIndex, out _streamSize);
             _blockSize = _pdb.SuperBlock.BlockSize;
-            SetCurrentBlockIndex(0, true);
+            SetPosition(0, 0);
         }
 
         /// <summary>Returns the current offset within the stream this reader is bound to.
@@ -48,8 +49,7 @@ namespace PdbReader
                 if (int.MaxValue < currentBlockIndex) {
                     throw new ArgumentOutOfRangeException(nameof(value));
                 }
-                SetCurrentBlockIndex(currentBlockIndex, false);
-                _currentBlockOffset = value % _blockSize;
+                SetPosition(currentBlockIndex, value % _blockSize);
             }
         }
 
@@ -63,6 +63,19 @@ namespace PdbReader
                 }
                 return _blockSize - _currentBlockOffset;
             }
+        }
+
+        private void AssertNotEndOfStream()
+        {
+            if (_endOfStreamReached) {
+                throw new BugException();
+            }
+        }
+
+        private uint ComputePaddingSize(uint boundarySize)
+        {
+            return (boundarySize - (_currentBlockOffset % boundarySize))
+                % boundarySize;
         }
 
         internal IStreamGlobalOffset GetGlobalOffset(bool ensureAtLeastOneAvailableByte = false)
@@ -97,14 +110,91 @@ namespace PdbReader
             _currentBlockOffset += fillSize;
         }
 
+        private int FindBlockIndex(uint globalOffset, out uint blockOffset)
+        {
+            for (int result = 0; result < _blocks.Length; result++) {
+                uint blockNumber = _blocks[result];
+                uint blockStartGlobalOffset = blockNumber * _blockSize;
+                if (blockStartGlobalOffset > globalOffset) {
+                    continue;
+                }
+                uint blockEndGlobalOffsetExcluded = blockStartGlobalOffset + _blockSize;
+                if (blockEndGlobalOffsetExcluded <= globalOffset) {
+                    continue;
+                }
+                // SetCurrentBlockIndex((uint)result);
+                blockOffset = globalOffset - blockStartGlobalOffset;
+                return result;
+            }
+            throw new BugException($"Unable to retrieve block matching global offset 0x{globalOffset:X8}.");
+        }
+
+        private void HandleEndOfBlock()
+        {
+            if (_currentBlockOffset == _blockSize) {
+                MoveToNextBlockAllowEndOfStream();
+                return;
+            }
+            if (_currentBlockOffset > _blockSize) {
+                throw new BugException();
+            }
+        }
+
+        internal void HandlePadding()
+        {
+            const uint WordBytesCount = 4;
+            uint paddingBytesCount = ComputePaddingSize(WordBytesCount);
+            if (0 == paddingBytesCount) {
+                return;
+            }
+            byte firstCandidatePaddingByte = PeekByte();
+            if ((0xF0 + paddingBytesCount) == firstCandidatePaddingByte) {
+                while(0 < paddingBytesCount) {
+                    byte paddingByte = ReadByte();
+                    if (paddingByte != (0xF0 + paddingBytesCount)) {
+                        throw new BugException();
+                    }
+                    paddingBytesCount--;
+                }
+            }
+        }
+
         private void MoveToNextBlock()
         {
-            SetCurrentBlockIndex((uint)(_currentBlockIndex + 1), true);
+            if (!MoveToNextBlockAllowEndOfStream()) {
+                throw new BugException();
+            }
+        }
+        
+        private bool MoveToNextBlockAllowEndOfStream()
+        {
+            if ((1 + _currentBlockIndex) >= _blocks.Length) {
+                _endOfStreamReached = true;
+                _currentBlockIndex += 1;
+                return false;
+            }
+            SetPosition((uint)(_currentBlockIndex + 1), 0);
+            return true;
+        }
+
+        internal byte PeekByte()
+        {
+            uint startOffset = Offset;
+            try { return ReadByte(); }
+            finally { this.Offset = startOffset; }
+        }
+
+        internal ushort PeekUInt16()
+        {
+            uint startOffset = Offset;
+            try { return ReadUInt16(); }
+            finally { this.Offset = startOffset; }
         }
 
         internal T Read<T>()
             where T : struct
         {
+            AssertNotEndOfStream();
             uint remainingBlockBytes = RemainingBlockBytes;
             uint requiredBytes = (uint)Marshal.SizeOf(typeof(T));
 
@@ -148,6 +238,7 @@ namespace PdbReader
             if (null == array) {
                 throw new ArgumentNullException(nameof(array));
             }
+            AssertNotEndOfStream();
             uint requiredBytes = (uint)array.Length;
             uint arrayOffset = 0;
             while(0 < requiredBytes) {
@@ -162,6 +253,7 @@ namespace PdbReader
                 }
                 MoveToNextBlock();
             }
+            HandleEndOfBlock();
         }
 
         internal void ReadArray<T>(T[] into, ReadDelegate<T> reader)
@@ -169,6 +261,7 @@ namespace PdbReader
             if (null == into) {
                 throw new ArgumentNullException(nameof(into));
             }
+            AssertNotEndOfStream();
             ReadArray(into, 0, into.Length, reader);
         }
 
@@ -181,6 +274,7 @@ namespace PdbReader
             if (0 > length) {
                 throw new ArgumentOutOfRangeException(nameof(length));
             }
+            AssertNotEndOfStream();
             if (0 == length) {
                 // Nothing to do.
                 return;
@@ -195,49 +289,78 @@ namespace PdbReader
             for (int index = 0; index < length; index++) {
                 into[index] = reader();
             }
+            HandleEndOfBlock();
         }
 
         internal byte ReadByte()
         {
-            uint remainingBlockBytes = RemainingBlockBytes;
+            AssertNotEndOfStream();
             uint globalOffset = _GetGlobalOffset();
-            if (sizeof(byte) > remainingBlockBytes) {
-                // We must be at end of block.
-                MoveToNextBlock();
-                // Note : globalOffset is incremented by the reader.
-            }
             byte result = _pdb.ReadByte(ref globalOffset);
             _currentBlockOffset += sizeof(byte);
+            HandleEndOfBlock();
             return result;
         }
 
         internal string ReadNTBString()
         {
+            AssertNotEndOfStream();
             List<byte> bytes = new List<byte>();
             while (true) {
                 byte inputByte = ReadByte();
                 if (0 == inputByte) { break; }
                 bytes.Add(inputByte);
             }
-            return Encoding.UTF8.GetString(bytes.ToArray());
+            string result = Encoding.UTF8.GetString(bytes.ToArray());
+            // It looks like some but not all NTB strings are further padded with additional
+            // bytes to next 32 bits boundary. Padding bytes are 0xF3 0xF2 0xF1 (in that order).
+            HandlePadding();
+            HandleEndOfBlock();
+            return result;
         }
 
-        internal ushort PeekUInt16()
+        internal ulong ReadVariableLengthValue()
         {
-            uint startOffset = Offset;
-            try { return ReadUInt16(); }
-            finally { this.Offset = startOffset; }
+            ulong firstWord = ReadUInt16();
+            if (0 == (0x8000 & firstWord)) {
+                // Fast track.
+                return firstWord;
+            }
+            ulong result = 0;
+            ushort bytesCount = (ushort)(firstWord & 0x7FFF);
+            if (4 < bytesCount) {
+                throw new NotSupportedException();
+            }
+            while (0 < bytesCount) {
+                ushort input = ReadUInt16();
+                if (2 <= bytesCount) {
+                    result += (ulong)input << 16;
+                    bytesCount -= 2;
+                }
+                else if (1 == bytesCount) {
+                    result += ((ulong)input & 0xFF) << 16;
+                    bytesCount -= 1;
+                }
+                else if (0 == bytesCount) {
+                    throw new BugException();
+                }
+            }
+            return result;
         }
 
         internal ushort ReadUInt16()
         {
+            AssertNotEndOfStream();
             uint remainingBlockBytes = RemainingBlockBytes;
             ushort result;
             uint globalOffset = _GetGlobalOffset();
             if (sizeof(ushort) <= remainingBlockBytes) {
                 // Fast read.
                 try { return _pdb.ReadUInt16(ref globalOffset); }
-                finally { _currentBlockOffset += sizeof(ushort); }
+                finally {
+                    _currentBlockOffset += sizeof(ushort);
+                    HandleEndOfBlock();
+                }
             }
             // Must cross block boundary.
             int unreadBytes = sizeof(ushort);
@@ -264,18 +387,23 @@ namespace PdbReader
                 // bytes.
                 unreadBytes--;
             }
+            HandleEndOfBlock();
             return result;
         }
 
         internal uint ReadUInt32()
         {
+            AssertNotEndOfStream();
             uint remainingBlockBytes = RemainingBlockBytes;
             uint result;
             uint globalOffset = _GetGlobalOffset();
             if (sizeof(uint) <= remainingBlockBytes) {
                 // Fast read.
                 try { return _pdb.ReadUInt32(ref globalOffset); }
-                finally { _currentBlockOffset += sizeof(uint); }
+                finally {
+                    _currentBlockOffset += sizeof(uint);
+                    HandleEndOfBlock();
+                }
             }
             // Must cross block boundary.
             int unreadBytes = sizeof(uint);
@@ -302,20 +430,22 @@ namespace PdbReader
                 // bytes.
                 unreadBytes--;
             }
+            HandleEndOfBlock();
             return result;
         }
 
-        private void SetCurrentBlockIndex(uint value, bool resetBlockOffset = false)
-        {
-            if (value >= _blocks.Length) {
-                throw new ArgumentOutOfRangeException(nameof(value));
-            }
-            _currentBlockIndex = (int)value;
-            _currentBlockNumber = _blocks[value];
-            if (resetBlockOffset) {
-                _currentBlockOffset = 0;
-            }
-        }
+        //private void SetCurrentBlockIndex(uint value, bool resetBlockOffset = false)
+        //{
+        //    if (value >= _blocks.Length) {
+        //        throw new ArgumentOutOfRangeException(nameof(value));
+        //    }
+        //    _currentBlockIndex = (int)value;
+        //    _currentBlockNumber = _blocks[value];
+        //    if (resetBlockOffset) {
+        //        _currentBlockOffset = 0;
+        //    }
+        //    _endOfStreamReached = false;
+        //}
 
         internal void SetGlobalOffset(IStreamGlobalOffset value, bool doNotWarn = false)
         {
@@ -327,27 +457,22 @@ namespace PdbReader
             if (0 > newBlockIndex) {
                 throw new BugException();
             }
-            SetCurrentBlockIndex((uint)newBlockIndex);
-            _currentBlockOffset = newBlockOffset;
+            SetPosition((uint)newBlockIndex, newBlockOffset);
+            _endOfStreamReached = false;
         }
 
-        private int FindBlockIndex(uint globalOffset, out uint blockOffset)
+        private void SetPosition(uint newBlockIndex, uint newBlockOffset)
         {
-            for (int result = 0; result < _blocks.Length; result++) {
-                uint blockNumber = _blocks[result];
-                uint blockStartGlobalOffset = blockNumber * _blockSize;
-                if (blockStartGlobalOffset > globalOffset) {
-                    continue;
-                }
-                uint blockEndGlobalOffsetExcluded = blockStartGlobalOffset + _blockSize;
-                if (blockEndGlobalOffsetExcluded <= globalOffset) {
-                    continue;
-                }
-                SetCurrentBlockIndex((uint)result);
-                blockOffset = globalOffset - blockStartGlobalOffset;
-                return result;
+            if (newBlockIndex >= _blocks.Length) {
+                throw new ArgumentOutOfRangeException(nameof(newBlockIndex));
             }
-            throw new BugException($"Unable to restriev block matching global offset 0x{globalOffset:X8}.");
+            if (newBlockOffset >= _blockSize) {
+                throw new ArgumentOutOfRangeException(nameof(newBlockOffset));
+            }
+            _currentBlockIndex = (int)newBlockIndex;
+            _currentBlockNumber = _blocks[newBlockIndex];
+            _currentBlockOffset = newBlockOffset;
+            _endOfStreamReached = false;
         }
 
         private class GlobalOffset : IStreamGlobalOffset
@@ -370,6 +495,13 @@ namespace PdbReader
                 }
             }
 
+            private GlobalOffset(PdbStreamReader owner, int index, uint offset)
+            {
+                _owner = owner;
+                _blockIndex = index;
+                _blockOffset = offset;
+            }
+
             internal GlobalOffset(PdbStreamReader owner, uint value)
             {
                 _owner = owner;
@@ -386,9 +518,8 @@ namespace PdbReader
                 while (true) {
                     uint candidateOffset = remainingDisplacement + currentBlockOffset;
                     if (candidateOffset < _owner._blockSize) {
-                        _blockIndex = currentBlockIndex;
-                        _blockOffset = candidateOffset;
-                        return this;
+                        return new GlobalOffset(this._owner, currentBlockIndex,
+                            candidateOffset);
                     }
                     // Continue with next block.
                     uint availableBlockBytes = _owner._blockSize - currentBlockOffset;

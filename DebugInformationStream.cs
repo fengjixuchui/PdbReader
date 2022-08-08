@@ -31,23 +31,14 @@ namespace PdbReader
         {
             _owner = owner ?? throw new ArgumentNullException(nameof(owner));
             _reader = new PdbStreamReader(owner, 3);
-            Initialize();
-        }
-
-        private ushort? GetOptionalStreamIndex()
-        {
-            ushort input = _reader.ReadUInt16();
-            return (ushort.MaxValue == input) ? null : input;
-        }
-
-        private void Initialize()
-        {
+            // Read header.
             _header = _reader.Read<DBIStreamHeader>();
             if (!_header.IsNewVersionFormat()) {
                 throw new NotSupportedException("Legacy DBI stream format.");
             }
             _owner.AssertValidStreamNumber(_header.GlobalStreamIndex);
             _owner.AssertValidStreamNumber(_header.PublicStreamIndex);
+            // Read module information substream.
             LoadOptionalStreamsIndex();
             uint streamSize = _owner.GetStreamSize(ThisStreamIndex);
             if (_reader.Offset != streamSize) {
@@ -56,15 +47,22 @@ namespace PdbReader
             }
         }
 
+        private ushort? GetOptionalStreamIndex()
+        {
+            ushort input = _reader.ReadUInt16();
+            return (ushort.MaxValue == input) ? null : input;
+        }
+
         private void LoadOptionalStreamsIndex()
         {
-            // Set stream position
+            // Set stream position which should be near the end of the DBI stream.
             int newOffset = Marshal.SizeOf<DBIStreamHeader>() + _header.ModInfoSize +
                 _header.SectionContributionSize + _header.SectionMapSize +
                 _header.SourceInfoSize + _header.TypeServerMapSize +
                 _header.ECSubstreamSize;
             _reader.Offset = Pdb.SafeCastToUint32(newOffset);
 
+            // Read optional streams index.
             _fpoDataStreamIndex = GetOptionalStreamIndex();
             _exceptionDataStreamIndex = GetOptionalStreamIndex();
             _fixupDataStreamIndex = GetOptionalStreamIndex();
@@ -133,10 +131,17 @@ namespace PdbReader
             Dictionary<uint, string> fileNameByIndex = new Dictionary<uint, string>();
             uint filenameBaseOffset = _reader.Offset;
             for(int index = 0; index < realFileCount; index++) {
+                if (876 == index) {
+                    bool doBreak = true;
+                }
                 uint thisFileOffset = _reader.Offset;
                 string filename = _reader.ReadNTBString();
                 uint fileRelativeOffset = thisFileOffset - filenameBaseOffset;
                 fileNameByIndex.Add(fileRelativeOffset, filename);
+Console.WriteLine($"Added #{fileNameByIndex.Count} '{filename}' @0x{fileRelativeOffset:X8}");
+                if (126 == fileNameByIndex.Count) {
+                    bool doBreak = true;
+                }
             }
 
             // Tracing
@@ -227,14 +232,20 @@ namespace PdbReader
             SectionMapEntry mapEntry = _reader.Read<SectionMapEntry>();
         }
 
-        public void LoadSectionMappings()
+        public SectionMapEntry[] LoadSectionMappings()
         {
             // Set stream position
             int newOffset = Marshal.SizeOf<DBIStreamHeader>() + _header.ModInfoSize +
                 _header.SectionContributionSize;
             _reader.Offset = Pdb.SafeCastToUint32(newOffset);
 
-            throw new NotImplementedException();
+            ushort sectionDescriptorsCount = _reader.ReadUInt16();
+            ushort sectionLogicalDescriptorsCount = _reader.ReadUInt16();
+            SectionMapEntry[] result = new SectionMapEntry[sectionDescriptorsCount];
+            for(int index = 0; index < sectionDescriptorsCount; index++) {
+                result[index] = _reader.Read<SectionMapEntry>();
+            }
+            return result;
         }
 
         public void LoadTypeServerMappings()
@@ -248,6 +259,7 @@ namespace PdbReader
             throw new NotImplementedException();
         }
 
+        [StructLayout(LayoutKind.Sequential, Pack = 1)]
         internal struct DBIStreamHeader
         {
             /// <summary>Always uint.MaxValue.</summary>
@@ -331,7 +343,7 @@ namespace PdbReader
             }
         }
 
-        internal struct SectionMapEntry
+        public struct SectionMapEntry
         {
             internal _Flags Flags;
             /// <summary>Logical overlay number</summary>
@@ -345,9 +357,9 @@ namespace PdbReader
             internal ushort ClassName;
             /// <summary>Byte offset of the logical segment within physical segment.
             /// If group is set in flags, this is the offset of the group.</summary>
-            internal ushort Offset;
+            internal uint Offset;
             /// <summary>Byte count of the segment or group.</summary>
-            internal ushort SectionLength;
+            internal uint SectionLength;
 
             [Flags()]
             internal enum _Flags : ushort

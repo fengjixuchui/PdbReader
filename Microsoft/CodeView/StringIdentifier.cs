@@ -11,17 +11,9 @@ namespace PdbReader.Microsoft.CodeView
         internal static StringIdentifier Create(PdbStreamReader reader)
         {
             StringIdentifier result = new StringIdentifier() {
-                Identifier = reader.Read<_StringIdentifier>()
+                Identifier = reader.Read<_StringIdentifier>(),
+                Name = reader.ReadNTBString()
             };
-            StringBuilder builder = new StringBuilder();
-            while (true) {
-                byte  inputByte = reader.ReadByte();
-                if (0 == inputByte) {
-                    break;
-                }
-                builder.Append((char)inputByte);
-            }
-            result.Name = builder.ToString();
             return result;
         }
 

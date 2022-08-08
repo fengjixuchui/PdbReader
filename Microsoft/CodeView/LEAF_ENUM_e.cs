@@ -45,6 +45,24 @@ namespace PdbReader.Microsoft.CodeView
         OEM16Bits = 0x0015,       // oem definable type string
         TypeServerST = 0x0016,       // not referenced from symbol
 
+        // Padding pseudo types
+        Pad00 = 0xF0,
+        Pad01 = 0xF1,
+        Pad02 = 0xF2,
+        Pad03 = 0xF3,
+        Pad04 = 0xF4,
+        Pad05 = 0xF5,
+        Pad06 = 0xF6,
+        Pad07 = 0xF7,
+        Pad08 = 0xF8,
+        Pad09 = 0xF9,
+        Pad10 = 0xFA,
+        Pad11 = 0xFB,
+        Pad12 = 0xFC,
+        Pad13 = 0xFD,
+        Pad14 = 0xFE,
+        Pad15 = 0xFF,
+
         // leaf indices starting records but referenced only from type records
 
         Skip16Bits = 0x0200,
