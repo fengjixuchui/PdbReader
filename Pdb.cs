@@ -49,6 +49,9 @@ namespace PdbReader
         public DebugInformationStream DebugInfoStream
             => _debugInfoStream ?? throw new BugException();
 
+        internal bool FullDecodingDebugEnabled
+            => (0 != (_traceFlags & TraceFlags.FullDecodingDebug));
+
         internal bool ShouldTraceNamedStreamMap
             => (0 != (_traceFlags & TraceFlags.NamedStreamMap));
 
@@ -294,6 +297,7 @@ namespace PdbReader
             StreamDirectoryBlocks = 0x00000001,
             NamedStreamMap = 0x00000002,
             ModulesInformation = 0x00000004,
+            FullDecodingDebug = 0x00000008
         }
     }
 }

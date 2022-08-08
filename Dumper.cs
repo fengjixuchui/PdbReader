@@ -1,4 +1,5 @@
-﻿using System.Reflection;
+﻿using System.Collections;
+using System.Reflection;
 
 using PdbReader;
 
@@ -6,7 +7,7 @@ namespace PdbDumper
 {
     public static class Dumper
     {
-        private static FileInfo? _pdbFile;
+        private static IEnumerable<FileInfo> _allFiles;
 
         public static int Main(string[] args)
         {
@@ -14,25 +15,30 @@ namespace PdbDumper
                 Usage();
                 return 1;
             }
-            if (null == _pdbFile) {
-                throw new ApplicationException("BUG");
+            try {
+                foreach (FileInfo scannedPdb in _allFiles) {
+                    Pdb pdb = new Pdb(scannedPdb, Pdb.TraceFlags.None /*StreamDirectoryBlocks*/, true);
+                    Console.WriteLine($"INFO : PDB file {scannedPdb.FullName} successfully loaded.");
+                    LoadDBIStream(pdb);
+                    LoadTPIStream(pdb);
+                    LoadIPIStream(pdb);
+                    Console.WriteLine($"INFO : PDB file {scannedPdb.FullName} successfully scanned.");
+                }
             }
-            Pdb pdb = new Pdb(_pdbFile, Pdb.TraceFlags.None /*StreamDirectoryBlocks*/, true);
-            Console.WriteLine("INFO : PDB file successfully loaded.");
-            LoadDBIStream(pdb);
-            LoadTPIStream(pdb);
-            LoadIPIStream(pdb);
+            catch (Exception e) { throw; }
             return 0;
         }
 
         private static void LoadDBIStream(Pdb pdb)
         {
-            pdb.DebugInfoStream.LoadModuleInformations();
-            pdb.DebugInfoStream.LoadSectionContributions();
-            pdb.DebugInfoStream.LoadSectionMappings();
-            pdb.DebugInfoStream.LoadFileInformations();
-            pdb.DebugInfoStream.LoadTypeServerMappings();
-            pdb.DebugInfoStream.LoadEditAndContinueMappings();
+            // The stream header has been read at object instanciation time;
+            DebugInformationStream stream = pdb.DebugInfoStream;
+            stream.LoadModuleInformations();
+            stream.LoadSectionContributions();
+            stream.LoadSectionMappings();
+            stream.LoadFileInformations();
+            stream.LoadTypeServerMappings();
+            stream.LoadEditAndContinueMappings();
         }
 
         private static void LoadIPIStream(Pdb pdb)
@@ -52,10 +58,21 @@ namespace PdbDumper
             if (0 == args.Length) {
                 return false;
             }
-            _pdbFile = new FileInfo(args[0]);
-            if (!_pdbFile.Exists) {
-                Console.WriteLine($"Input file '{_pdbFile.FullName}' doesn't exist.");
-                return false;
+            if ("-cached" == args[0]) {
+                DirectoryInfo root = new DirectoryInfo(args[1]);
+                if (!root.Exists) {
+                    Console.WriteLine($"Input direcotry '{root.FullName}' doesn't exist.");
+                    return false;
+                }
+                _allFiles = WalkDirectory(root);
+            }
+            else {
+                FileInfo singleFile = new FileInfo(args[0]);
+                if (!singleFile.Exists) {
+                    Console.WriteLine($"Input file '{singleFile.FullName}' doesn't exist.");
+                    return false;
+                }
+                _allFiles = SingleFileEnumerator(singleFile);
             }
             return true;
         }
@@ -65,6 +82,28 @@ namespace PdbDumper
             Assembly thisAssembly = Assembly.GetExecutingAssembly();
 
             Console.WriteLine($"{thisAssembly.GetName().Name} <pdb file name>");
+        }
+
+        private static IEnumerable<FileInfo> SingleFileEnumerator(FileInfo candidate)
+        {
+            yield return candidate;
+            yield break;
+        }
+
+        private static IEnumerable<FileInfo> WalkDirectory(DirectoryInfo root)
+        {
+            Stack<DirectoryInfo> directoryStack = new Stack<DirectoryInfo>();
+            directoryStack.Push(root);
+            while (0 < directoryStack.Count) {
+                DirectoryInfo currentDirectory = directoryStack.Pop();
+                foreach(DirectoryInfo subDirectory in currentDirectory.GetDirectories()) {
+                    directoryStack.Push(subDirectory);
+                }
+                foreach(FileInfo candidateFile in currentDirectory.GetFiles("*.pdb")) {
+                    yield return candidateFile;
+                }
+            }
+            yield break;
         }
     }
 }

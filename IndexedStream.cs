@@ -71,7 +71,9 @@ namespace PdbReader
                 _reader.SetGlobalOffset(recordEndGlobalOffsetExcluded);
             }
             else if (currentOffset == recordEndOffsetExcluded) {
-                Console.WriteLine($"DBG : {recordKind} record #{recordIdentifier} fully decoded.");
+                if (_owner.FullDecodingDebugEnabled) {
+                    Console.WriteLine($"DBG : {recordKind} record #{recordIdentifier} fully decoded.");
+                }
             }
             else { throw new BugException(); }
         }
@@ -119,6 +121,9 @@ namespace PdbReader
                 case LEAF_ENUM_e.VirtualTableShape:
                     return VirtualTableShape.Create(_reader);
                 default:
+                    // TODO : Account for padding pseudo bytes.
+                    // Handling should match description from include file (i.e. should only
+                    // appear in complex types).
                     Console.WriteLine(
                         $"WARN : Unknwon leaf record kind '{recordKind}' / 0x{((int)recordKind):X4}");
                     return null;

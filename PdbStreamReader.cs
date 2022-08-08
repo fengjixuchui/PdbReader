@@ -144,6 +144,9 @@ namespace PdbReader
         {
             const uint WordBytesCount = 4;
             uint paddingBytesCount = ComputePaddingSize(WordBytesCount);
+            if (0 == paddingBytesCount) {
+                return;
+            }
             byte firstCandidatePaddingByte = PeekByte();
             if ((0xF0 + paddingBytesCount) == firstCandidatePaddingByte) {
                 while(0 < paddingBytesCount) {
